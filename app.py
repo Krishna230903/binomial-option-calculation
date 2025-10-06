@@ -118,7 +118,6 @@ if st.sidebar.button("Calculate", use_container_width=True, type="primary"):
         
         st.markdown("---")
         
-        # --- NEW: Greeks Displayed in Tabs ---
         st.subheader("🔬 Option Greeks Analysis")
         
         tab1, tab2, tab3, tab4, tab5 = st.tabs(["Delta (Δ)", "Gamma (Γ)", "Theta (Θ)", "Vega (ν)", "Rho (ρ)"])
@@ -127,62 +126,85 @@ if st.sidebar.button("Calculate", use_container_width=True, type="primary"):
             st.metric(label="Delta Value", value=f"{results['delta']:.4f}")
             st.markdown("#### How Delta is Calculated")
             st.markdown("Delta measures the change in the option price for a ₹1 change in the underlying stock. It's calculated from the first step of the binomial tree.")
-            st.latex(r'''
-            \Delta = \frac{C_{u} - C_{d}}{S_{u} - S_{d}}
-            ''')
-            st.markdown(r"""
-            - $C_{u}$ and $C_{d}$ are the option prices at the first 'up' and 'down' nodes.
-            - $S_{u}$ and $S_{d}$ are the stock prices at the first 'up' and 'down' nodes.
-            """)
+            st.latex(r'\Delta = \frac{C_{u} - C_{d}}{S_{u} - S_{d}}')
+            st.markdown(r"- $C_{u}$ and $C_{d}$ are the option prices at the first 'up' and 'down' nodes.")
+            st.markdown(r"- $S_{u}$ and $S_{d}$ are the stock prices at the first 'up' and 'down' nodes.")
 
         with tab2:
             st.metric(label="Gamma Value", value=f"{results['gamma']:.4f}")
             st.markdown("#### How Gamma is Calculated")
             st.markdown("Gamma measures the rate of change of Delta. It's highest for at-the-money options and is calculated using values from the first two steps of the tree.")
-            st.latex(r'''
-            \Gamma = \frac{\Delta_{u} - \Delta_{d}}{S_{uu} - S_{dd}}
-            ''')
-            st.markdown(r"""
-            - $\Delta_{u}$ is the Delta of the 'up' branch.
-            - $\Delta_{d}$ is the Delta of the 'down' branch.
-            - $S_{uu}$ and $S_{dd}$ are stock prices after two 'up' or two 'down' moves.
-            """)
+            st.latex(r'\Gamma = \frac{\Delta_{u} - \Delta_{d}}{S_{uu} - S_{dd}}')
+            st.markdown(r"- $\Delta_{u}$ is the Delta of the 'up' branch.")
+            st.markdown(r"- $\Delta_{d}$ is the Delta of the 'down' branch.")
+            st.markdown(r"- $S_{uu}$ and $S_{dd}$ are stock prices after two 'up' or two 'down' moves.")
 
         with tab3:
             st.metric(label="Theta Value (per day)", value=f"₹{results['theta']:.4f}")
             st.markdown("#### How Theta is Calculated")
             st.markdown("Theta represents the option's time decay. It's calculated by measuring the change in the option's price over the first two time steps of the model.")
-            st.latex(r'''
-            \Theta = \frac{C_{1,2} - C_{0,0}}{2 \Delta t}
-            ''')
-            st.markdown(r"""
-            - $C_{1,2}$ is the option price at the middle node two steps into the future.
-            - $C_{0,0}$ is the option price today.
-            - $\Delta t$ is the duration of a single time step.
-            """)
+            st.latex(r'\Theta = \frac{C_{1,2} - C_{0,0}}{2 \Delta t}')
+            st.markdown(r"- $C_{1,2}$ is the option price at the middle node two steps into the future.")
+            st.markdown(r"- $C_{0,0}$ is the option price today.")
+            st.markdown(r"- $\Delta t$ is the duration of a single time step.")
 
         with tab4:
             st.metric(label="Vega Value", value=f"₹{results['vega']:.4f}")
             st.markdown("#### How Vega is Calculated")
             st.markdown("Vega is found numerically. The model recalculates the entire option price with a 1% increase in volatility (`σ`) and measures the difference.")
-            st.latex(r'''
-            \nu = \text{Price}(\sigma + 1\%) - \text{Price}(\sigma)
-            ''')
+            st.latex(r'\nu = \text{Price}(\sigma + 1\%) - \text{Price}(\sigma)')
             
         with tab5:
             st.metric(label="Rho Value", value=f"₹{results['rho']:.4f}")
             st.markdown("#### How Rho is Calculated")
             st.markdown("Similar to Vega, Rho is found numerically. The model recalculates the option price with a 1% increase in the risk-free rate (`r`) and measures the difference.")
-            st.latex(r'''
-            \rho = \text{Price}(r + 1\%) - \text{Price}(r)
-            ''')
+            st.latex(r'\rho = \text{Price}(r + 1\%) - \text{Price}(r)')
 
     else:
         st.error("Cannot calculate without a valid live stock price.")
 
+# --- Full Explanation Section Restored ---
 with st.expander("📘 View Overall Model Explanations"):
-    # (The general explanation from the previous version can remain here)
-    st.markdown("...") # Omitted for brevity, but you can paste the previous explanation here
+    st.markdown("""
+    This model uses the **Cox-Ross-Rubinstein (CRR) Binomial method** to price options. Here's a breakdown of the core calculations:
+    
+    ### 1. Framework Setup
+    First, we define the length of each step in our binomial tree.
+    - **Time Step (`Δt`)**: The total time to expiration (`T`, in years) is divided by the number of steps (`N`).
+      $$ \Delta t = \\frac{T}{N} $$
+      
+    ### 2. Up and Down Price Movements (`u`, `d`)
+    The model assumes the stock can only go up or down by a certain factor at each step. The CRR model calculates these factors to match the stock's volatility (`σ`).
+    - **Up Factor (`u`)**: 
+      $$ u = e^{\sigma \sqrt{\Delta t}} $$
+    - **Down Factor (`d`)**: To ensure the tree is "recombining" (an up-move followed by a down-move is the same as a down-move followed by an up-move), `d` is simply the inverse of `u`.
+      $$ d = \\frac{1}{u} $$
+      
+    ### 3. Risk-Neutral Probability (`p`)
+    This is the most critical concept. Instead of using real-world probabilities, we use a "risk-neutral" probability that ensures the expected return of the stock in our model is the risk-free rate (`r`). This allows us to discount future payoffs using `r`.
+    - **Probability (`p`)**: This formula solves for the probability `p` of an up-move such that the expected future value, discounted to the present, equals the current price.
+      $$ p = \\frac{e^{r\Delta t} - d}{u - d} $$
+    - The probability of a down-move is then simply `1-p`.
+    
+    ### 4. Building the Trees
+    1.  **Stock Price Tree**: We start with the current price `S` and apply the `u` and `d` factors across `N` steps to create a tree of all possible future stock prices.
+    2.  **Option Payoff Tree**: At the very last step (`t=T`), we calculate the option's intrinsic value for every possible stock price.
+        - For a **Call**: `max(0, Stock Price - Strike Price)`
+        - For a **Put**: `max(0, Strike Price - Stock Price)`
+        
+    ### 5. Backward Induction
+    With the final payoffs calculated, we work backward to the present day (`t=0`). The value of the option at any given node is the discounted expected value of the two possible nodes in the next step.
+    - **Option Value at any node**:
+      $$ \text{Value} = e^{-r\Delta t} [p \cdot \text{Value}_{up} + (1-p) \cdot \text{Value}_{down}] $$
+    Repeating this process until we reach the first node gives us the theoretical option price today.
+    
+    ### 6. The Greeks
+    The Greeks are calculated from the values in the first few nodes of the tree:
+    - **Delta (Δ)**: The change in option price for a change in stock price at the very first step.
+    - **Gamma (Γ)**: The rate of change of Delta, calculated using values from the second step of the tree.
+    - **Theta (Θ)**: The rate of time decay, calculated by observing the change in option price between `t=0` and a later step.
+    - **Vega (ν) & Rho (ρ)**: Calculated numerically by slightly increasing volatility (for Vega) or the interest rate (for Rho) by 1%, re-running the entire pricing model, and measuring the change in the final option price.
+    """)
 
 st.markdown("---")
 st.markdown("<p style='text-align: center; color: grey;'>Disclaimer: Educational tool. Not financial advice.</p>", unsafe_allow_html=True)
