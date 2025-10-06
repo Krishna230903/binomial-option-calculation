@@ -127,26 +127,18 @@ if st.sidebar.button("Calculate", use_container_width=True, type="primary"):
             st.markdown("#### How Delta is Calculated")
             st.markdown("Delta measures the change in the option price for a ₹1 change in the underlying stock. It's calculated from the first step of the binomial tree.")
             st.latex(r'\Delta = \frac{C_{u} - C_{d}}{S_{u} - S_{d}}')
-            st.markdown(r"- $C_{u}$ and $C_{d}$ are the option prices at the first 'up' and 'down' nodes.")
-            st.markdown(r"- $S_{u}$ and $S_{d}$ are the stock prices at the first 'up' and 'down' nodes.")
 
         with tab2:
             st.metric(label="Gamma Value", value=f"{results['gamma']:.4f}")
             st.markdown("#### How Gamma is Calculated")
             st.markdown("Gamma measures the rate of change of Delta. It's highest for at-the-money options and is calculated using values from the first two steps of the tree.")
             st.latex(r'\Gamma = \frac{\Delta_{u} - \Delta_{d}}{S_{uu} - S_{dd}}')
-            st.markdown(r"- $\Delta_{u}$ is the Delta of the 'up' branch.")
-            st.markdown(r"- $\Delta_{d}$ is the Delta of the 'down' branch.")
-            st.markdown(r"- $S_{uu}$ and $S_{dd}$ are stock prices after two 'up' or two 'down' moves.")
 
         with tab3:
             st.metric(label="Theta Value (per day)", value=f"₹{results['theta']:.4f}")
             st.markdown("#### How Theta is Calculated")
             st.markdown("Theta represents the option's time decay. It's calculated by measuring the change in the option's price over the first two time steps of the model.")
             st.latex(r'\Theta = \frac{C_{1,2} - C_{0,0}}{2 \Delta t}')
-            st.markdown(r"- $C_{1,2}$ is the option price at the middle node two steps into the future.")
-            st.markdown(r"- $C_{0,0}$ is the option price today.")
-            st.markdown(r"- $\Delta t$ is the duration of a single time step.")
 
         with tab4:
             st.metric(label="Vega Value", value=f"₹{results['vega']:.4f}")
@@ -163,47 +155,56 @@ if st.sidebar.button("Calculate", use_container_width=True, type="primary"):
     else:
         st.error("Cannot calculate without a valid live stock price.")
 
-# --- Full Explanation Section Restored ---
+# --- NEW: Analysis Section ---
+with st.expander("📊 Analyze Factors Affecting Option Prices"):
+    st.markdown("""
+    This section helps you understand how the key inputs affect an option's price and its Greeks. Use the calculator to simulate these scenarios yourself.
+
+    #### 1. Underlying Asset Price ($S_0$)
+    - **Impact on Calls 📈:** As stock price **increases**, call price **increases**.
+    - **Impact on Puts 📉:** As stock price **increases**, put price **decreases**.
+    - **Primary Greek:** **Delta (Δ)** measures this sensitivity.
+    - **Simulation:** Change the strike price to be slightly different from the live price and observe how Delta is above or below 0.50 for a call.
+
+    #### 2. Volatility ($\sigma$)
+    - **Impact on Calls & Puts 📈:** As volatility **increases**, the prices of **both** calls and puts **increase**. Higher uncertainty increases the chance of a large profitable move.
+    - **Primary Greek:** **Vega (ν)** measures the change in option price for a 1% change in volatility.
+    - **Simulation:** Set the strike price equal to the live price (at-the-money). Change the volatility from 15% to 25% and watch both option prices rise.
+    
+    #### 3. Time to Expiration ($T$)
+    - **Impact on Calls & Puts 📈:** As time to expiration **increases**, the prices of **both** calls and puts **increase** (this is called "time value").
+    - **Primary Greek:** **Theta (Θ)** measures the rate of this "time decay" per day.
+    - **Simulation:** Calculate an option with 90 days to expiry. Then, change it to 10 days. The price will be significantly lower, and the negative Theta value will be larger, indicating faster decay.
+    
+    #### 4. Strike Price ($K$)
+    - **Impact on Calls 📉:** As the strike price **increases**, the call price **decreases** (it's harder to become profitable).
+    - **Impact on Puts 📈:** As the strike price **increases**, the put price **increases** (the right to sell at a higher price is more valuable).
+    - **Simulation:** Set the live price to around ₹1000. Calculate prices for strike prices of ₹950, ₹1000, and ₹1050 to see the effect.
+    
+    #### 5. Risk-Free Interest Rate ($r$)
+    - **Impact on Calls 📈:** As interest rates **increase**, call prices **increase** slightly.
+    - **Impact on Puts 📉:** As interest rates **increase**, put prices **decrease** slightly.
+    - **Primary Greek:** **Rho (ρ)** measures this sensitivity.
+    - **Simulation:** Use a long-dated option (e.g., 180 days). Calculate the price with a rate of 2% and then 8%. You will notice a small change in the prices, which is measured by Rho.
+    """)
+
+# --- Overall Model Explanation Section ---
 with st.expander("📘 View Overall Model Explanations"):
     st.markdown("""
     This model uses the **Cox-Ross-Rubinstein (CRR) Binomial method** to price options. Here's a breakdown of the core calculations:
     
     ### 1. Framework Setup
-    First, we define the length of each step in our binomial tree.
-    - **Time Step (`Δt`)**: The total time to expiration (`T`, in years) is divided by the number of steps (`N`).
-      $$ \Delta t = \\frac{T}{N} $$
+    - **Time Step (`Δt`)**: The total time to expiration (`T`) is divided by the number of steps (`N`). $$ \Delta t = \\frac{T}{N} $$
       
     ### 2. Up and Down Price Movements (`u`, `d`)
-    The model assumes the stock can only go up or down by a certain factor at each step. The CRR model calculates these factors to match the stock's volatility (`σ`).
-    - **Up Factor (`u`)**: 
-      $$ u = e^{\sigma \sqrt{\Delta t}} $$
-    - **Down Factor (`d`)**: To ensure the tree is "recombining" (an up-move followed by a down-move is the same as a down-move followed by an up-move), `d` is simply the inverse of `u`.
-      $$ d = \\frac{1}{u} $$
+    - **Up Factor (`u`)**: $$ u = e^{\sigma \sqrt{\Delta t}} $$
+    - **Down Factor (`d`)**: $$ d = \\frac{1}{u} $$
       
     ### 3. Risk-Neutral Probability (`p`)
-    This is the most critical concept. Instead of using real-world probabilities, we use a "risk-neutral" probability that ensures the expected return of the stock in our model is the risk-free rate (`r`). This allows us to discount future payoffs using `r`.
-    - **Probability (`p`)**: This formula solves for the probability `p` of an up-move such that the expected future value, discounted to the present, equals the current price.
-      $$ p = \\frac{e^{r\Delta t} - d}{u - d} $$
-    - The probability of a down-move is then simply `1-p`.
+    - **Probability (`p`)**: $$ p = \\frac{e^{r\Delta t} - d}{u - d} $$
     
-    ### 4. Building the Trees
-    1.  **Stock Price Tree**: We start with the current price `S` and apply the `u` and `d` factors across `N` steps to create a tree of all possible future stock prices.
-    2.  **Option Payoff Tree**: At the very last step (`t=T`), we calculate the option's intrinsic value for every possible stock price.
-        - For a **Call**: `max(0, Stock Price - Strike Price)`
-        - For a **Put**: `max(0, Strike Price - Stock Price)`
-        
-    ### 5. Backward Induction
-    With the final payoffs calculated, we work backward to the present day (`t=0`). The value of the option at any given node is the discounted expected value of the two possible nodes in the next step.
-    - **Option Value at any node**:
-      $$ \text{Value} = e^{-r\Delta t} [p \cdot \text{Value}_{up} + (1-p) \cdot \text{Value}_{down}] $$
-    Repeating this process until we reach the first node gives us the theoretical option price today.
-    
-    ### 6. The Greeks
-    The Greeks are calculated from the values in the first few nodes of the tree:
-    - **Delta (Δ)**: The change in option price for a change in stock price at the very first step.
-    - **Gamma (Γ)**: The rate of change of Delta, calculated using values from the second step of the tree.
-    - **Theta (Θ)**: The rate of time decay, calculated by observing the change in option price between `t=0` and a later step.
-    - **Vega (ν) & Rho (ρ)**: Calculated numerically by slightly increasing volatility (for Vega) or the interest rate (for Rho) by 1%, re-running the entire pricing model, and measuring the change in the final option price.
+    ### 4. Backward Induction
+    - **Option Value at any node**: $$ \text{Value} = e^{-r\Delta t} [p \cdot \text{Value}_{up} + (1-p) \cdot \text{Value}_{down}] $$
     """)
 
 st.markdown("---")
