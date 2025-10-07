@@ -24,20 +24,30 @@ def get_nifty_50_tickers():
 @st.cache_data
 def calculate_historical_volatility(ticker, period="1y"):
     """
-    Calculates the annualized historical volatility of a stock.
+    Calculates the annualized historical volatility of a stock. (DEBUG VERSION)
     """
     try:
+        print(f"--- Attempting to fetch historical data for {ticker} ---")
         stock_data = yf.Ticker(ticker).history(period=period)
+        
         if stock_data.empty:
+            print(f"!!! FAILED: yfinance returned an empty DataFrame for {ticker}.")
             st.sidebar.warning(f"No historical data for {ticker} in the last year.")
             return None
-            
+        
+        print(f"--- SUCCESS: Fetched {len(stock_data)} rows of data. ---")
+        
         log_returns = np.log(stock_data['Close'] / stock_data['Close'].shift(1))
         log_returns = log_returns.dropna()
+        
         daily_std_dev = log_returns.std()
         annualized_volatility = daily_std_dev * np.sqrt(252)
+        
+        print(f"--- SUCCESS: Calculated Volatility: {annualized_volatility * 100:.2f}% ---")
         return annualized_volatility * 100
+        
     except Exception as e:
+        print(f"!!! FAILED: An exception occurred: {e}")
         st.sidebar.error(f"Volatility calculation failed: {e}")
         return None
 
@@ -82,7 +92,6 @@ def calculate_option_data(S, K, T, r_percent, sigma_percent, N, option_type):
     price = option_tree[0, 0]
     dt = T / N
 
-    # Greeks calculation requires at least 3 steps to be meaningful
     if N < 3:
         delta, gamma, theta = 0, 0, 0
     else:
@@ -130,7 +139,6 @@ time_to_exp = time_to_exp_days / 365.0
 
 risk_free_rate = st.sidebar.number_input("Risk-Free Rate (Rf) in %", min_value=0.0, value=7.0, step=0.1)
 
-# --- VOLATILITY CALCULATION WIDGETS ---
 st.sidebar.subheader("Volatility (σ)")
 
 if 'volatility' not in st.session_state:
@@ -149,7 +157,6 @@ volatility = st.sidebar.number_input(
     key='volatility_input'
 )
 st.session_state.volatility = volatility
-# --- END OF VOLATILITY WIDGETS ---
 
 steps = st.sidebar.slider("Model Steps (N)", min_value=10, max_value=500, value=100, step=10, help="Higher steps increase accuracy.")
 
@@ -161,7 +168,6 @@ if st.sidebar.button("Calculate Option Price", use_container_width=True, type="p
             if 'error' in results:
                 st.error(results['error'])
             else:
-                # --- Main Display Area ---
                 st.subheader(f"Valuation for {ticker} {option_type} Option")
                 res_col1, res_col2 = st.columns([1, 2])
                 res_col1.metric(label=f"Theoretical Option Price", value=f"₹{results.get('price', 0):,.2f}")
@@ -172,7 +178,6 @@ if st.sidebar.button("Calculate Option Price", use_container_width=True, type="p
                 """)
                 st.markdown("---")
                 
-                # --- Greeks Analysis in Tabs ---
                 st.subheader("🔬 Option Greeks Analysis")
                 tab1, tab2, tab3, tab4, tab5 = st.tabs(["Delta (Δ)", "Gamma (Γ)", "Theta (Θ)", "Vega (ν)", "Rho (ρ)"])
                 with tab1: st.metric(label="Delta Value", value=f"{results.get('delta', 0):.4f}", help="Rate of change of option price w.r.t. asset price.")
@@ -181,11 +186,9 @@ if st.sidebar.button("Calculate Option Price", use_container_width=True, type="p
                 with tab4: st.metric(label="Vega Value", value=f"₹{results.get('vega', 0):,.2f}", help="Rate of change of option price w.r.t. volatility.")
                 with tab5: st.metric(label="Rho Value", value=f"₹{results.get('rho', 0):,.2f}", help="Rate of change of option price w.r.t. interest rate.")
 
-                # --- Live Quantitative Analysis Report ---
                 with st.expander("📝 Live Quantitative Analysis Report", expanded=True):
                     st.markdown("This report shows how the option's value changes when one variable is adjusted while others are held constant.")
                     
-                    # 1. Underlying Price Analysis
                     st.markdown("#### 1. Impact of Underlying Asset Price (S)")
                     price_data = []
                     s_range = [live_price * 0.95, live_price, live_price * 1.05]
@@ -196,7 +199,6 @@ if st.sidebar.button("Calculate Option Price", use_container_width=True, type="p
                     st.dataframe(price_df, use_container_width=True)
                     st.markdown(f"**Analysis:** As the stock price moves from `₹{s_range[0]:,.2f}` to `₹{s_range[2]:,.2f}`, the {option_type.lower()} price changes significantly. The **Delta** quantifies this sensitivity.")
 
-                    # 2. Volatility Analysis
                     st.markdown("#### 2. Impact of Volatility (σ)")
                     vol_data = []
                     vol_range = [max(1.0, volatility - 5), volatility, volatility + 5]
@@ -207,7 +209,6 @@ if st.sidebar.button("Calculate Option Price", use_container_width=True, type="p
                     st.dataframe(vol_df, use_container_width=True)
                     st.markdown(f"**Analysis:** Changing volatility has a strong impact on the option price. The **Vega** of `₹{results.get('vega', 0):,.2f}` indicates the approximate price increase for each 1% rise in volatility.")
                     
-                    # 3. Time to Expiration Analysis
                     st.markdown("#### 3. Impact of Time to Expiration (T)")
                     time_data = []
                     time_range_days = sorted([time_to_exp_days + 30, time_to_exp_days, max(1, time_to_exp_days - 15)], reverse=True)
