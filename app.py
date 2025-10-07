@@ -167,31 +167,42 @@ if st.sidebar.button("Calculate", use_container_width=True, type="primary"):
 
                 # --- Live Quantitative Analysis Report ---
                 with st.expander("📝 Live Quantitative Analysis Report", expanded=True):
-                    st.markdown("This report shows how the option's value changes when one variable is adjusted while others are held constant.")
+                    st.markdown("This report is dynamically generated based on your inputs. It shows how the option's value changes when one variable is adjusted while others are held constant.")
 
                     # 1. Underlying Price Analysis
                     st.markdown("#### 1. Impact of Underlying Asset Price (S)")
-                    s_range = np.linspace(live_price * 0.9, live_price * 1.1, 10)
-                    price_analysis_data = [calculate_option_data(s, strike_price, time_to_exp, risk_free_rate, volatility, steps, option_type).get('price', 0) for s in s_range]
-                    price_df = pd.DataFrame({'Underlying Price': s_range, f'{option_type} Price': price_analysis_data}).set_index('Underlying Price')
-                    st.line_chart(price_df)
-                    st.markdown(f"**Analysis:** The chart shows the direct relationship between the stock price and the {option_type.lower()} option's value. The slope of this curve at any point is the **Delta**.")
+                    price_data = []
+                    s_range = [live_price * 0.95, live_price, live_price * 1.05]
+                    for s_val in s_range:
+                        res = calculate_option_data(s_val, strike_price, time_to_exp, risk_free_rate, volatility, steps, option_type)
+                        price_data.append({'Underlying Price (S)': f"₹{s_val:,.2f}", f'{option_type} Price': f"₹{res.get('price', 0):,.2f}", 'Delta (Δ)': f"{res.get('delta', 0):.3f}"})
+                    price_df = pd.DataFrame(price_data)
+                    st.dataframe(price_df, use_container_width=True, hide_index=True)
+                    st.markdown(f"**Analysis:** As the stock price moves from `₹{s_range[0]:,.2f}` to `₹{s_range[2]:,.2f}`, the {option_type.lower()} price changes significantly. The **Delta** quantifies this sensitivity, showing how the option's responsiveness changes with its 'moneyness'.")
 
                     # 2. Volatility Analysis
                     st.markdown("#### 2. Impact of Volatility (σ)")
-                    vol_range = np.linspace(max(1.0, volatility - 10), volatility + 10, 10)
-                    vol_analysis_data = [calculate_option_data(live_price, strike_price, time_to_exp, risk_free_rate, vol, steps, option_type).get('price', 0) for vol in vol_range]
-                    vol_df = pd.DataFrame({'Implied Volatility (%)': vol_range, f'{option_type} Price': vol_analysis_data}).set_index('Implied Volatility (%)')
-                    st.line_chart(vol_df)
-                    st.markdown(f"**Analysis:** Higher volatility increases the price of both calls and puts because it raises the probability of the option finishing deep in-the-money. **Vega** measures this sensitivity.")
+                    vol_data = []
+                    vol_range = [max(1.0, volatility - 5), volatility, volatility + 5]
+                    for vol_val in vol_range:
+                        res = calculate_option_data(live_price, strike_price, time_to_exp, risk_free_rate, vol_val, steps, option_type)
+                        vol_data.append({'Volatility (σ)': f"{vol_val:.1f}%", f'{option_type} Price': f"₹{res.get('price', 0):,.2f}", 'Vega (ν)': f"₹{res.get('vega', 0):,.2f}"})
+                    vol_df = pd.DataFrame(vol_data)
+                    st.dataframe(vol_df, use_container_width=True, hide_index=True)
+                    st.markdown(f"**Analysis:** Changing volatility from `{vol_range[0]:.1f}%` to `{vol_range[2]:.1f}%` has a strong impact on the option price. The **Vega** of `₹{results.get('vega', 0):,.2f}` (from your base calculation) indicates the approximate price increase for each 1% rise in volatility.")
 
                     # 3. Time to Expiration Analysis
                     st.markdown("#### 3. Impact of Time to Expiration (T)")
-                    time_range_days = np.linspace(max(1, time_to_exp_days - 25), time_to_exp_days + 30, 10, dtype=int)
-                    time_analysis_data = [calculate_option_data(live_price, strike_price, t/365.0, risk_free_rate, volatility, steps, option_type).get('price', 0) for t in time_range_days]
-                    time_df = pd.DataFrame({'Days to Expiry': time_range_days, f'{option_type} Price': time_analysis_data}).set_index('Days to Expiry')
-                    st.line_chart(time_df)
-                    st.markdown(f"**Analysis:** The option loses value as time passes, and the rate of this decay (Theta) accelerates as expiration approaches. This phenomenon is known as **time decay**.")
+                    time_data = []
+                    # Ensure the range doesn't go below 1 day
+                    time_range_days = sorted([time_to_exp_days + 30, time_to_exp_days, max(1, time_to_exp_days - 15)])
+                    for t_days in time_range_days:
+                        t_years = t_days / 365.0
+                        res = calculate_option_data(live_price, strike_price, t_years, risk_free_rate, volatility, steps, option_type)
+                        time_data.append({'Days to Expiry': t_days, f'{option_type} Price': f"₹{res.get('price', 0):,.2f}", 'Theta (Θ) per day': f"₹{res.get('theta', 0):,.2f}"})
+                    time_df = pd.DataFrame(time_data)
+                    st.dataframe(time_df, use_container_width=True, hide_index=True)
+                    st.markdown(f"**Analysis:** This table clearly illustrates time decay. An option with `{time_range_days[2]}` days of life is worth more than one with `{time_range_days[0]}` days. The **Theta** shows that the rate of daily value loss accelerates as the option gets closer to expiration.")
 
     else:
         st.error("Cannot perform calculation without a valid live stock price. Please check the ticker selection.")
